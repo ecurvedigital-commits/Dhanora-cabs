@@ -10,6 +10,7 @@
   },
   "packageManager": "pnpm@12.11.2",
   "scripts": {
+    "postinstall": "pnpm --filter @dehradun/prisma generate",
     "dev": "pnpm --filter @dehradun/web dev & pnpm --filter @dehradun/api dev",
     "dev:web": "pnpm --filter @dehradun/web dev",
     "dev:api": "pnpm --filter @dehradun/api dev",

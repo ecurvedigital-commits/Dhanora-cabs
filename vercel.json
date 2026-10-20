@@ -15,7 +15,8 @@
     },
     "api": {
       "root": "apps/api",
-      "framework": "nestjs"
+      "framework": "nestjs",
+      "buildCommand": "pnpm --filter @dehradun/prisma generate && nest build"
     }
   },
   "rewrites": [
