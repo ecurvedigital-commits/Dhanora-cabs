@@ -3,6 +3,33 @@
  * Handles communication between Next.js (Web & Admin CMS) and the NestJS REST API.
  */
 
+/**
+ * Dynamically resolves the API base URL at runtime.
+ * Prioritizes Vercel internal service bindings (process.env.API_URL) when executing on the server,
+ * and uses relative origin or NEXT_PUBLIC_API_URL in the browser to leverage Vercel rewrites.
+ */
+export function getApiBaseUrl(): string {
+  // 1. Vercel internal service binding (resolved dynamically at runtime in server functions)
+  if (typeof window === 'undefined') {
+    if (process.env.API_URL) {
+      return process.env.API_URL.replace(/\/$/, '');
+    }
+  }
+
+  // 2. Explicit public API URL if configured
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+  }
+
+  // 3. Client-side in browser: relative path "" routes through top-level Vercel rewrites
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+
+  // 4. Default fallback for local server development
+  return 'http://localhost:3001';
+}
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:3001';
 
@@ -28,7 +55,9 @@ async function request<T>(
   options: RequestInit = {},
   token?: string | null,
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const baseUrl = getApiBaseUrl();
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = baseUrl ? `${baseUrl}${cleanEndpoint}` : cleanEndpoint;
   const headers = new Headers(options.headers || {});
 
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
