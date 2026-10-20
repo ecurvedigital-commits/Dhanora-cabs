@@ -4,22 +4,13 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { FloatingMobileBar } from '@/components/FloatingMobileBar';
-import { BRAND_TOKENS, FLEET_OPTIONS } from '@/lib/tokens';
 import {
   Car,
-  Clock,
   Compass,
-  MapPin,
-  ShieldCheck,
-  CheckCircle,
-  ArrowRight,
-  Phone,
   MessageCircle,
   Users,
   Plane,
   Mountain,
-  Building,
-  Check,
 } from 'lucide-react';
 
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
@@ -42,7 +33,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Taxi & Cab Services in Dehradun — Dhanora Cab Service',
     description:
-      'Explore all transportation services provided by Dhanora Cab Service. Transparent tariff rates with zero hidden charges. 24x7 Call: +91 75058 00684.',
+      'Explore all transportation services provided by Dhanora Cab Service with zero hidden charges. 24x7 Call: +91 75058 00684.',
     url: 'https://www.dhanoracabs.com/services',
     images: ['/images/logo.jpg'],
   },
@@ -62,7 +53,6 @@ export default function ServicesPage() {
       tagline: 'Sightseeing, shopping, weddings & corporate visits',
       icon: Car,
       color: 'text-[#F5BE19]',
-      packages: ['4 Hours / 40 KM: ₹999', '8 Hours / 80 KM: ₹1,799', '12 Hours / 120 KM: ₹2,499'],
       desc: 'Explore Forest Research Institute (FRI), Robber’s Cave (Guchhupani), Sahastradhara, Tapkeshwar Temple, and Pacific Mall with a dedicated car and chauffeur on standby.',
       features: ['Unlimited stops within package', 'Zero extra charge for waiting in traffic', 'Clean AC vehicles'],
     },
@@ -72,7 +62,6 @@ export default function ServicesPage() {
       tagline: 'Delhi NCR, Chandigarh, Haridwar, Punjab & beyond',
       icon: Compass,
       color: 'text-[#0284C7]',
-      packages: ['Delhi NCR from ₹2,999', 'Chandigarh from ₹2,499', 'Haridwar from ₹1,499'],
       desc: 'Hassle-free intercity highway travel. Pay only for one-way drop or book a round-trip with dedicated chauffeur. FASTag enabled with zero return toll surcharge.',
       features: ['Doorstep pickup at any hour', 'No return fare on one-way trips', 'Experienced highway drivers'],
     },
@@ -82,7 +71,6 @@ export default function ServicesPage() {
       tagline: 'Guaranteed punctual pickup with flight tracking',
       icon: Plane,
       color: 'text-[#15803D]',
-      packages: ['Dehradun to Airport: ₹899', 'Airport to Mussoorie: ₹2,499', 'Airport to Rishikesh: ₹1,299'],
       desc: 'Never miss a flight. We track commercial flight schedules in real time. If your arrival is delayed, your chauffeur will be waiting outside the terminal with a nameboard.',
       features: ['Flight delay compensation', 'Luggage assistance included', '24x7 night emergency dispatch'],
     },
@@ -92,7 +80,6 @@ export default function ServicesPage() {
       tagline: 'Yamunotri, Gangotri, Kedarnath & Badrinath',
       icon: Mountain,
       color: 'text-[#92400E]',
-      packages: ['Complete 10-Day Chardham from ₹28,500', '6-Day Do Dham from ₹18,500'],
       desc: 'The sacred journey deserves the highest mountain driving standards. All our hill drivers hold commercial mountain badges with 10+ years of Garhwal Himalayan experience.',
       features: ['Oxygen cylinder assistance available', 'High road clearance Innova & Ertiga', 'Driver night halt included'],
     },
@@ -102,7 +89,6 @@ export default function ServicesPage() {
       tagline: '9, 12, 17 & 26 Seater Luxury Minibuses',
       icon: Users,
       color: 'text-[#7C3AED]',
-      packages: ['12-Seater Tempo from ₹24/km', '17-Seater Luxury from ₹28/km', 'Local Full Day from ₹4,500'],
       desc: 'Ideal for extended families, wedding guests, corporate retreats, and trekking groups. Reclining pushback seats, individual AC vents, and massive boot luggage capacity.',
       features: ['Full 2x1 pushback luxury seating', 'High-roof walking space', 'Stereo entertainment system'],
     },
@@ -112,7 +98,6 @@ export default function ServicesPage() {
       tagline: 'Kempty Falls, Mall Road, Gun Hill & Lal Tibba',
       icon: Mountain,
       color: 'text-[#E11D48]',
-      packages: ['Full Day Excursion: ₹1,799', 'Mussoorie + Dhanaulti: ₹2,899'],
       desc: 'Ascend 6,500 feet into the clouds. Avoid stressful driving on steep hairpin curves and parking hassles at crowded viewpoints. Relax as our chauffeur navigates.',
       features: ['Kolhukhet eco-toll guidance', 'Flexible itinerary time', 'Local hill guide insights'],
     },
@@ -167,24 +152,10 @@ export default function ServicesPage() {
 
                     <p className="text-xs text-[#4B5E76] leading-relaxed">{srv.desc}</p>
 
-                    <div className="space-y-1.5 p-3 rounded-xl bg-[#F8F7F2] border border-[#CBD5E1]/60 text-xs">
-                      <span className="text-[10px] text-slate-700 font-bold uppercase tracking-wider block">
-                        Popular Tariffs:
-                      </span>
-                      <ul className="space-y-1">
-                        {srv.packages.map((pkg, i) => (
-                          <li key={i} className="font-bold text-[#14263D] flex items-center gap-1.5">
-                            <Check className="w-3.5 h-3.5 text-[#15803D]" />
-                            <span>{pkg}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="space-y-1 text-xs">
+                    <div className="space-y-2 text-xs pt-1">
                       {srv.features.map((feat, i) => (
                         <div key={i} className="flex items-center gap-2 text-[#4B5E76]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#F5BE19]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F5BE19] shrink-0" />
                           <span>{feat}</span>
                         </div>
                       ))}
