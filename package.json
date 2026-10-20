@@ -1,0 +1,44 @@
+{
+  "name": "dehradun-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dehradun Taxi, Outstation Travel, Uttarakhand Tour, Trekking & Safari Platform",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "dev": "pnpm --filter @dehradun/web dev & pnpm --filter @dehradun/api dev",
+    "dev:web": "pnpm --filter @dehradun/web dev",
+    "dev:api": "pnpm --filter @dehradun/api dev",
+    "build": "pnpm --filter @dehradun/web build",
+    "start": "node server.js",
+    "build:all": "pnpm -r build",
+    "build:web": "pnpm --filter @dehradun/web build",
+    "build:api": "pnpm --filter @dehradun/api build",
+    "build:dist": "powershell -ExecutionPolicy Bypass -File scripts/build-dist.ps1",
+    "pack:deploy": "powershell -ExecutionPolicy Bypass -File scripts/create-deploy-zip.ps1",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter \"!@dehradun/e2e\" test",
+    "test:e2e": "pnpm --filter @dehradun/e2e test",
+    "db:generate": "pnpm --filter @dehradun/prisma generate",
+    "db:migrate:dev": "pnpm --filter @dehradun/prisma migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @dehradun/prisma migrate:deploy",
+    "db:studio": "pnpm --filter @dehradun/prisma studio",
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:prod:build": "docker compose -f infra/docker-compose.prod.yml build",
+    "docker:prod:up": "docker compose -f infra/docker-compose.prod.yml up -d",
+    "docker:prod:down": "docker compose -f infra/docker-compose.prod.yml down",
+    "clean": "pnpm -r exec -- rimraf dist .next .turbo node_modules/.cache",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}

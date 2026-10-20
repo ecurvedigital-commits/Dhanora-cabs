@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false,
+    "removeComments": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dehradun/prisma": ["../../packages/prisma/src/index.ts"],
+      "@dehradun/contracts": ["../../packages/contracts/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+}

@@ -1,0 +1,5 @@
+# LiteSpeed / Apache reverse proxy for Next.js (port 3000)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+</IfModule>

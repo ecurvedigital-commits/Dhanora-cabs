@@ -1,0 +1,1021 @@
+// ──────────────────────────────────────────────────────────
+// Dehradun Platform — Production Database Schema
+// ──────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────
+
+enum BookingStatus {
+  PENDING_REVIEW  // Initial state. All bookings start here. No auto-confirm allowed.
+  CONFIRMED       // Admin manually approved booking and agreed on fare snapshot.
+  ASSIGNED        // Driver and/or vehicle allocated to booking's trip.
+  IN_PROGRESS     // Trip currently active on road / trek.
+  COMPLETED       // Service concluded successfully.
+  CANCELLED       // Booking cancelled by customer or admin.
+  EXPIRED         // Booking inquiry lapsed without action.
+  REJECTED        // Admin rejected the booking request.
+}
+
+enum ServiceType {
+  LOCAL_TAXI
+  OUTSTATION
+  TOUR_PACKAGE
+  TREKKING
+  SAFARI
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  VOIDED
+}
+
+enum PaymentMethod {
+  UPI
+  CREDIT_CARD
+  DEBIT_CARD
+  NET_BANKING
+  CASH
+  BANK_TRANSFER
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  STRIPE
+  CASH_OFFLINE
+  MANUAL_BANK
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  ACTIVE
+  RELEASED
+  CANCELLED
+}
+
+enum TripStatus {
+  SCHEDULED
+  DISPATCHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TripEventType {
+  DISPATCHED
+  DRIVER_ARRIVED
+  TRIP_STARTED
+  WAYPOINT_REACHED
+  BREAK_STARTED
+  BREAK_ENDED
+  EMERGENCY_ALERT
+  TRIP_COMPLETED
+  TRIP_CANCELLED
+}
+
+enum ExpenseType {
+  TOLL
+  PARKING
+  FUEL
+  DRIVER_ALLOWANCE
+  STATE_PERMIT
+  MAINTENANCE
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  FAILED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum EnquiryStatus {
+  NEW
+  IN_REVIEW
+  RESPONDED
+  CONVERTED
+  CLOSED
+}
+
+enum DepartureStatus {
+  SCHEDULED
+  CONFIRMED
+  FULL
+  COMPLETED
+  CANCELLED
+}
+
+enum CmsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+  PUSH
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  FINANCIAL_CORRECTION
+  ASSIGNMENT_CONFLICT_OVERRIDE
+}
+
+// ──────────────────────────────────────────────────────────
+// 1. Users, Roles & RBAC
+// ──────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @map("email")
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  phone        String?   @map("phone")
+  isActive     Boolean   @default(true) @map("is_active")
+  isSuperAdmin Boolean   @default(false) @map("is_super_admin")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  userRoles               UserRole[]
+  customerNotes           CustomerNote[]
+  statusHistoryChanges    BookingStatusHistory[]
+  fareSnapshotsConfirmed  FareSnapshot[]
+  vehicleAssignmentsMade  VehicleAssignment[]       @relation("VehicleAssignedBy")
+  vehicleAssignmentsEnded VehicleAssignment[]       @relation("VehicleUnassignedBy")
+  driverAssignmentsMade   DriverAssignment[]        @relation("DriverAssignedBy")
+  driverAssignmentsEnded  DriverAssignment[]        @relation("DriverUnassignedBy")
+  tripEventsRecorded      TripEvent[]
+  approvedRefunds         Refund[]
+  financialCorrections    FinancialCorrection[]
+  approvedExpenses        TripExpense[]
+  assignedEnquiries       Enquiry[]                 @relation("EnquiryAssignedTo")
+  approvedReviews         Review[]                  @relation("ReviewApprovedBy")
+  cmsPagesAuthored        CmsPage[]
+  mediaAssetsUploaded     MediaAsset[]
+  systemSettingsUpdated   SystemSetting[]
+  driverProfile           Driver?
+
+  @@index([email])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @map("name")
+  slug        String   @unique @map("slug")
+  description String?  @map("description")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  action      String   @map("action")
+  resource    String   @map("resource")
+  description String?  @map("description")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@unique([action, resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid()) @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  assignedById String?  @map("assigned_by_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// ──────────────────────────────────────────────────────────
+// 2. Customers & Notes
+// ──────────────────────────────────────────────────────────
+
+model Customer {
+  id                 String    @id @default(uuid()) @db.Uuid
+  fullName           String    @map("full_name")
+  phone              String    @unique @map("phone")
+  email              String?   @map("email")
+  altPhone           String?   @map("alt_phone")
+  address            String?   @map("address")
+  city               String?   @map("city")
+  state              String?   @default("Uttarakhand") @map("state")
+  postalCode         String?   @map("postal_code")
+  totalBookings      Int       @default(0) @map("total_bookings")
+  lifetimeSpendPaise BigInt    @default(0) @map("lifetime_spend_paise")
+  isBlocked          Boolean   @default(false) @map("is_blocked")
+  blockReason        String?   @map("block_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  bookings      Booking[]
+  customerNotes CustomerNote[]
+  enquiries     Enquiry[]
+  reviews       Review[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+model CustomerNote {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  note       String   @map("note")
+  isPinned   Boolean  @default(false) @map("is_pinned")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@map("customer_notes")
+}
+
+// ──────────────────────────────────────────────────────────
+// 3. Bookings, Status History & Fare Snapshots
+// ──────────────────────────────────────────────────────────
+
+model Booking {
+  id                  String        @id @default(uuid()) @db.Uuid
+  bookingNumber       String        @unique @map("booking_number")
+  customerId          String        @map("customer_id") @db.Uuid
+  serviceType         ServiceType   @map("service_type")
+  // CRITICAL: Always defaults to PENDING_REVIEW. Never automatically confirmed.
+  status              BookingStatus @default(PENDING_REVIEW) @map("status")
+  pickupAddress       String        @map("pickup_address")
+  pickupLatitude      Decimal?      @map("pickup_latitude") @db.Decimal(10, 7)
+  pickupLongitude     Decimal?      @map("pickup_longitude") @db.Decimal(10, 7)
+  dropAddress         String?       @map("drop_address")
+  dropLatitude        Decimal?      @map("drop_latitude") @db.Decimal(10, 7)
+  dropLongitude       Decimal?      @map("drop_longitude") @db.Decimal(10, 7)
+  scheduledStart      DateTime      @map("scheduled_start")
+  scheduledEnd        DateTime?     @map("scheduled_end")
+  passengerCount      Int           @default(1) @map("passenger_count")
+  luggageCount        Int           @default(0) @map("luggage_count")
+  specialInstructions String?       @map("special_instructions")
+  source              String        @default("WEBSITE") @map("source")
+  cancellationReason  String?       @map("cancellation_reason")
+  cancelledAt         DateTime?     @map("cancelled_at")
+  cancelledById       String?       @map("cancelled_by_id") @db.Uuid
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  customer             Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  statusHistory        BookingStatusHistory[]
+  fareSnapshot         FareSnapshot?
+  trip                 Trip?
+  packageBooking       PackageBooking?
+  payments             Payment[]
+  invoices             Invoice[]
+  refunds              Refund[]
+  financialCorrections FinancialCorrection[]
+  reviews              Review[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([serviceType])
+  @@index([scheduledStart])
+  @@map("bookings")
+}
+
+model BookingStatusHistory {
+  id           String        @id @default(uuid()) @db.Uuid
+  bookingId    String        @map("booking_id") @db.Uuid
+  fromStatus   BookingStatus @map("from_status")
+  toStatus     BookingStatus @map("to_status")
+  changedById  String?       @map("changed_by_id") @db.Uuid
+  changeReason String?       @map("change_reason")
+  metadataJson Json?         @map("metadata_json")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedBy User?   @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@map("booking_status_history")
+}
+
+/// FareSnapshot: Immutable record of the agreed fare upon booking confirmation.
+/// Once confirmed, subsequent rate rule adjustments cannot silently modify agreed fares.
+model FareSnapshot {
+  id                       String    @id @default(uuid()) @db.Uuid
+  bookingId                String    @unique @map("booking_id") @db.Uuid
+  baseFarePaise            Int       @map("base_fare_paise")
+  distanceRatePaise        Int       @default(0) @map("distance_rate_paise")
+  estimatedDistanceKm      Decimal   @default(0) @map("estimated_distance_km") @db.Decimal(8, 2)
+  durationHours            Decimal   @default(0) @map("duration_hours") @db.Decimal(6, 2)
+  perHourRatePaise         Int       @default(0) @map("per_hour_rate_paise")
+  tollEstimatePaise        Int       @default(0) @map("toll_estimate_paise")
+  parkingEstimatePaise     Int       @default(0) @map("parking_estimate_paise")
+  stateTaxPaise            Int       @default(0) @map("state_tax_paise")
+  driverAllowancePaise     Int       @default(0) @map("driver_allowance_paise")
+  nightHaltChargePaise     Int       @default(0) @map("night_halt_charge_paise")
+  discountPaise            Int       @default(0) @map("discount_paise")
+  taxPercent               Decimal   @default(5.00) @map("tax_percent") @db.Decimal(5, 2)
+  taxPaise                 Int       @default(0) @map("tax_paise")
+  totalFarePaise           Int       @map("total_fare_paise")
+  advanceRequiredPaise     Int       @default(0) @map("advance_required_paise")
+  currency                 String    @default("INR") @map("currency")
+  pricingRulesSnapshotJson Json      @map("pricing_rules_snapshot_json")
+  calculatedAt             DateTime  @default(now()) @map("calculated_at")
+  confirmedAt              DateTime? @map("confirmed_at")
+  confirmedById            String?   @map("confirmed_by_id") @db.Uuid
+
+  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy User?   @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@map("fare_snapshots")
+}
+
+// ──────────────────────────────────────────────────────────
+// 4. Vehicles, Drivers & Rate Rules
+// ──────────────────────────────────────────────────────────
+
+model VehicleCategory {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @unique @map("name")
+  slug            String   @unique @map("slug")
+  seatingCapacity Int      @map("seating_capacity")
+  luggageCapacity Int      @map("luggage_capacity")
+  airConditioned  Boolean  @default(true) @map("air_conditioned")
+  description     String?  @map("description")
+  iconUrl         String?  @map("icon_url")
+  sortOrder       Int      @default(0) @map("sort_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  vehicles  Vehicle[]
+  rateRules RateRule[]
+
+  @@map("vehicle_categories")
+}
+
+model Vehicle {
+  id                 String    @id @default(uuid()) @db.Uuid
+  categoryId         String    @map("category_id") @db.Uuid
+  registrationNumber String    @unique @map("registration_number")
+  make               String    @map("make")
+  model              String    @map("model")
+  year               Int       @map("year")
+  color              String?   @map("color")
+  vin                String?   @unique @map("vin")
+  insuranceExpiry    DateTime  @map("insurance_expiry")
+  fitnessExpiry      DateTime  @map("fitness_expiry")
+  permitExpiry       DateTime  @map("permit_expiry")
+  pucExpiry          DateTime  @map("puc_expiry")
+  isAvailable        Boolean   @default(true) @map("is_available")
+  isActive           Boolean   @default(true) @map("is_active")
+  metadataJson       Json?     @map("metadata_json")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  category    VehicleCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  assignments VehicleAssignment[]
+
+  @@index([registrationNumber])
+  @@index([categoryId])
+  @@index([isAvailable, isActive])
+  @@map("vehicles")
+}
+
+model Driver {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String?   @unique @map("user_id") @db.Uuid
+  fullName        String    @map("full_name")
+  phone           String    @unique @map("phone")
+  altPhone        String?   @map("alt_phone")
+  licenseNumber   String    @unique @map("license_number")
+  licenseExpiry   DateTime  @map("license_expiry")
+  aadharNumber    String?   @unique @map("aadhar_number")
+  badgeNumber     String?   @map("badge_number")
+  experienceYears Int       @default(0) @map("experience_years")
+  rating          Decimal   @default(5.00) @map("rating") @db.Decimal(3, 2)
+  isAvailable     Boolean   @default(true) @map("is_available")
+  isActive        Boolean   @default(true) @map("is_active")
+  verifiedAt      DateTime? @map("verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignments DriverAssignment[]
+
+  @@index([phone])
+  @@index([licenseNumber])
+  @@index([isAvailable, isActive])
+  @@map("drivers")
+}
+
+model RateRule {
+  id                      String      @id @default(uuid()) @db.Uuid
+  name                    String      @map("name")
+  serviceType             ServiceType @map("service_type")
+  categoryId              String      @map("category_id") @db.Uuid
+  baseFarePaise           Int         @map("base_fare_paise")
+  baseDistanceKm          Decimal     @default(0) @map("base_distance_km") @db.Decimal(8, 2)
+  perKmRatePaise          Int         @map("per_km_rate_paise")
+  perMinuteRatePaise      Int         @default(0) @map("per_minute_rate_paise")
+  deadMileageRatePaise    Int         @default(0) @map("dead_mileage_rate_paise")
+  driverDayAllowancePaise Int         @default(0) @map("driver_day_allowance_paise")
+  nightHaltChargePaise    Int         @default(0) @map("night_halt_charge_paise")
+  minimumHours            Int         @default(0) @map("minimum_hours")
+  perHourRatePaise        Int         @default(0) @map("per_hour_rate_paise")
+  stateTaxIncluded        Boolean     @default(false) @map("state_tax_included")
+  effectiveFrom           DateTime    @map("effective_from")
+  effectiveTo             DateTime?   @map("effective_to")
+  isActive                Boolean     @default(true) @map("is_active")
+  createdAt               DateTime    @default(now()) @map("created_at")
+  updatedAt               DateTime    @updatedAt @map("updated_at")
+
+  category VehicleCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([serviceType, categoryId])
+  @@index([isActive, effectiveFrom])
+  @@map("rate_rules")
+}
+
+// ──────────────────────────────────────────────────────────
+// 5. Trips, Assignments & Conflict Prevention
+// ──────────────────────────────────────────────────────────
+
+model Trip {
+  id               String     @id @default(uuid()) @db.Uuid
+  bookingId        String     @unique @map("booking_id") @db.Uuid
+  tripNumber       String     @unique @map("trip_number")
+  status           TripStatus @default(SCHEDULED) @map("status")
+  startOdometerKm  Decimal?   @map("start_odometer_km") @db.Decimal(10, 2)
+  endOdometerKm    Decimal?   @map("end_odometer_km") @db.Decimal(10, 2)
+  actualStartTime  DateTime?  @map("actual_start_time")
+  actualEndTime    DateTime?  @map("actual_end_time")
+  startLocation    String?    @map("start_location")
+  endLocation      String?    @map("end_location")
+  notes            String?    @map("notes")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  booking            Booking             @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  vehicleAssignments VehicleAssignment[]
+  driverAssignments  DriverAssignment[]
+  events             TripEvent[]
+  expenses           TripExpense[]
+
+  @@index([status])
+  @@map("trips")
+}
+
+model VehicleAssignment {
+  id             String           @id @default(uuid()) @db.Uuid
+  tripId         String           @map("trip_id") @db.Uuid
+  vehicleId      String           @map("vehicle_id") @db.Uuid
+  status         AssignmentStatus @default(ASSIGNED) @map("status")
+  assignedAt     DateTime         @default(now()) @map("assigned_at")
+  assignedById   String?          @map("assigned_by_id") @db.Uuid
+  unassignedAt   DateTime?        @map("unassigned_at")
+  unassignedById String?          @map("unassigned_by_id") @db.Uuid
+  notes          String?          @map("notes")
+
+  trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  assignedBy   User?   @relation("VehicleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  unassignedBy User?   @relation("VehicleUnassignedBy", fields: [unassignedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([vehicleId, status])
+  @@map("vehicle_assignments")
+}
+
+model DriverAssignment {
+  id             String           @id @default(uuid()) @db.Uuid
+  tripId         String           @map("trip_id") @db.Uuid
+  driverId       String           @map("driver_id") @db.Uuid
+  status         AssignmentStatus @default(ASSIGNED) @map("status")
+  assignedAt     DateTime         @default(now()) @map("assigned_at")
+  assignedById   String?          @map("assigned_by_id") @db.Uuid
+  unassignedAt   DateTime?        @map("unassigned_at")
+  unassignedById String?          @map("unassigned_by_id") @db.Uuid
+  notes          String?          @map("notes")
+
+  trip         Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driver       Driver @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  assignedBy   User?  @relation("DriverAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  unassignedBy User?  @relation("DriverUnassignedBy", fields: [unassignedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([driverId, status])
+  @@map("driver_assignments")
+}
+
+model TripEvent {
+  id           String        @id @default(uuid()) @db.Uuid
+  tripId       String        @map("trip_id") @db.Uuid
+  eventType    TripEventType @map("event_type")
+  latitude     Decimal?      @map("latitude") @db.Decimal(10, 7)
+  longitude    Decimal?      @map("longitude") @db.Decimal(10, 7)
+  description  String?       @map("description")
+  recordedAt   DateTime      @default(now()) @map("recorded_at")
+  recordedById String?       @map("recorded_by_id") @db.Uuid
+  payloadJson  Json?         @map("payload_json")
+
+  trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  recordedBy User? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId, recordedAt])
+  @@map("trip_events")
+}
+
+// ──────────────────────────────────────────────────────────
+// 6. Tour Packages, Itineraries & Departures
+// ──────────────────────────────────────────────────────────
+
+model PackageCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @map("name")
+  slug        String   @unique @map("slug")
+  description String?  @map("description")
+  iconUrl     String?  @map("icon_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  packages TourPackage[]
+
+  @@map("package_categories")
+}
+
+model TourPackage {
+  id                 String    @id @default(uuid()) @db.Uuid
+  categoryId         String    @map("category_id") @db.Uuid
+  title              String    @map("title")
+  slug               String    @unique @map("slug")
+  subtitle           String?   @map("subtitle")
+  summary            String    @map("summary")
+  description        String    @map("description")
+  durationDays       Int       @map("duration_days")
+  durationNights     Int       @map("duration_nights")
+  pickupLocation     String    @map("pickup_location")
+  dropLocation       String    @map("drop_location")
+  difficultyLevel    String?   @default("EASY") @map("difficulty_level")
+  season             String?   @map("season")
+  basePricePaise     Int       @map("base_price_paise")
+  maxGroupSize       Int       @default(20) @map("max_group_size")
+  inclusions         String[]  @map("inclusions")
+  exclusions         String[]  @map("exclusions")
+  termsAndConditions String?   @map("terms_and_conditions")
+  isPublished        Boolean   @default(false) @map("is_published")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  category        PackageCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  itineraryDays   ItineraryDay[]
+  departures      PackageDeparture[]
+  packageBookings PackageBooking[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([isPublished])
+  @@map("tour_packages")
+}
+
+model ItineraryDay {
+  id             String   @id @default(uuid()) @db.Uuid
+  packageId      String   @map("package_id") @db.Uuid
+  dayNumber      Int      @map("day_number")
+  title          String   @map("title")
+  description    String   @map("description")
+  accommodation  String?  @map("accommodation")
+  mealsIncluded  String[] @map("meals_included")
+  activities     String[] @map("activities")
+  sortOrder      Int      @default(0) @map("sort_order")
+
+  tourPackage TourPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, dayNumber])
+  @@map("itinerary_days")
+}
+
+model PackageDeparture {
+  id                 String          @id @default(uuid()) @db.Uuid
+  packageId          String          @map("package_id") @db.Uuid
+  departureDate      DateTime        @map("departure_date")
+  returnDate         DateTime        @map("return_date")
+  maxSeats           Int             @map("max_seats")
+  availableSeats     Int             @map("available_seats")
+  pricePerPersonPaise Int            @map("price_per_person_paise")
+  status             DepartureStatus @default(SCHEDULED) @map("status")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  tourPackage     TourPackage      @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageBookings PackageBooking[]
+
+  @@index([packageId, departureDate])
+  @@map("package_departures")
+}
+
+model PackageBooking {
+  id              String   @id @default(uuid()) @db.Uuid
+  bookingId       String   @unique @map("booking_id") @db.Uuid
+  packageId       String   @map("package_id") @db.Uuid
+  departureId     String?  @map("departure_id") @db.Uuid
+  adultCount      Int      @default(1) @map("adult_count")
+  childCount      Int      @default(0) @map("child_count")
+  specialRequests String?  @map("special_requests")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  booking   Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  package   TourPackage       @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  departure PackageDeparture? @relation(fields: [departureId], references: [id], onDelete: SetNull)
+
+  @@map("package_bookings")
+}
+
+// ──────────────────────────────────────────────────────────
+// 7. Payments, Refunds, Invoices & Trip Expenses
+// ──────────────────────────────────────────────────────────
+
+model Payment {
+  id                   String         @id @default(uuid()) @db.Uuid
+  bookingId            String         @map("booking_id") @db.Uuid
+  paymentNumber        String         @unique @map("payment_number")
+  amountPaise          Int            @map("amount_paise")
+  currency             String         @default("INR") @map("currency")
+  status               PaymentStatus  @default(PENDING) @map("status")
+  method               PaymentMethod  @map("method")
+  gateway              PaymentGateway @default(RAZORPAY) @map("gateway")
+  gatewayTransactionId String?        @unique @map("gateway_transaction_id")
+  gatewayOrderId       String?        @map("gateway_order_id")
+  idempotencyKeyId     String?        @map("idempotency_key_id") @db.Uuid
+  paidAt               DateTime?      @map("paid_at")
+  failureReason        String?        @map("failure_reason")
+  metadataJson         Json?          @map("metadata_json")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  booking        Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  idempotencyKey IdempotencyKey? @relation(fields: [idempotencyKeyId], references: [id], onDelete: SetNull)
+  refunds        Refund[]
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([gatewayOrderId])
+  @@map("payments")
+}
+
+model Refund {
+  id              String       @id @default(uuid()) @db.Uuid
+  paymentId       String       @map("payment_id") @db.Uuid
+  bookingId       String       @map("booking_id") @db.Uuid
+  refundNumber    String       @unique @map("refund_number")
+  amountPaise     Int          @map("amount_paise")
+  reason          String       @map("reason")
+  status          RefundStatus @default(PENDING) @map("status")
+  approvedById    String?      @map("approved_by_id") @db.Uuid
+  gatewayRefundId String?      @unique @map("gateway_refund_id")
+  processedAt     DateTime?    @map("processed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  payment    Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  approvedBy User?   @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([status])
+  @@map("refunds")
+}
+
+/// FinancialCorrection: Auditable record of manual fee recalculation or dispute adjustments.
+model FinancialCorrection {
+  id                   String   @id @default(uuid()) @db.Uuid
+  bookingId            String   @map("booking_id") @db.Uuid
+  originalAmountPaise  Int      @map("original_amount_paise")
+  correctedAmountPaise Int      @map("corrected_amount_paise")
+  deltaPaise           Int      @map("delta_paise")
+  reason               String   @map("reason")
+  approvedById         String   @map("approved_by_id") @db.Uuid
+  appliedAt            DateTime @default(now()) @map("applied_at")
+  metadataJson         Json?    @map("metadata_json")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  approvedBy User    @relation(fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@map("financial_corrections")
+}
+
+model Invoice {
+  id               String        @id @default(uuid()) @db.Uuid
+  bookingId        String        @map("booking_id") @db.Uuid
+  invoiceNumber    String        @unique @map("invoice_number")
+  invoiceDate      DateTime      @default(now()) @map("invoice_date")
+  dueDate          DateTime?     @map("due_date")
+  subtotalPaise    Int           @map("subtotal_paise")
+  taxPaise         Int           @map("tax_paise")
+  discountPaise    Int           @default(0) @map("discount_paise")
+  totalAmountPaise Int           @map("total_amount_paise")
+  paidAmountPaise  Int           @default(0) @map("paid_amount_paise")
+  status           InvoiceStatus @default(ISSUED) @map("status")
+  billingName      String        @map("billing_name")
+  billingGstin     String?       @map("billing_gstin")
+  billingAddress   String?       @map("billing_address")
+  pdfUrl           String?       @map("pdf_url")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model TripExpense {
+  id           String      @id @default(uuid()) @db.Uuid
+  tripId       String      @map("trip_id") @db.Uuid
+  expenseType  ExpenseType @map("expense_type")
+  amountPaise  Int         @map("amount_paise")
+  receiptUrl   String?     @map("receipt_url")
+  description  String?     @map("description")
+  recordedById String?     @map("recorded_by_id") @db.Uuid
+  approvedById String?     @map("approved_by_id") @db.Uuid
+  incurredAt   DateTime    @default(now()) @map("incurred_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  approvedBy User? @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([expenseType])
+  @@map("trip_expenses")
+}
+
+// ──────────────────────────────────────────────────────────
+// 8. Enquiries, Reviews & Notification Logs
+// ──────────────────────────────────────────────────────────
+
+model Enquiry {
+  id              String        @id @default(uuid()) @db.Uuid
+  customerId      String?       @map("customer_id") @db.Uuid
+  name            String        @map("name")
+  phone           String        @map("phone")
+  email           String?       @map("email")
+  serviceType     ServiceType?  @map("service_type")
+  travelDate      DateTime?     @map("travel_date")
+  pickupLocation  String?       @map("pickup_location")
+  destination     String?       @map("destination")
+  message         String        @map("message")
+  status          EnquiryStatus @default(NEW) @map("status")
+  assignedToId    String?       @map("assigned_to_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedTo User?     @relation("EnquiryAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([phone])
+  @@map("enquiries")
+}
+
+model Review {
+  id          String    @id @default(uuid()) @db.Uuid
+  bookingId   String    @map("booking_id") @db.Uuid
+  customerId  String    @map("customer_id") @db.Uuid
+  rating      Int       @map("rating")
+  title       String?   @map("title")
+  comment     String    @map("comment")
+  isApproved  Boolean   @default(false) @map("is_approved")
+  approvedById String?  @map("approved_by_id") @db.Uuid
+  approvedAt  DateTime? @map("approved_at")
+  isFeatured  Boolean   @default(false) @map("is_featured")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  booking    Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  approvedBy User?     @relation("ReviewApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+  @@index([isApproved, isFeatured])
+  @@map("reviews")
+}
+
+model NotificationLog {
+  id                String              @id @default(uuid()) @db.Uuid
+  recipient         String              @map("recipient")
+  channel           NotificationChannel @map("channel")
+  templateName      String              @map("template_name")
+  subject           String?             @map("subject")
+  content           String              @map("content")
+  status            NotificationStatus  @default(QUEUED) @map("status")
+  providerMessageId String?             @map("provider_message_id")
+  errorDetails      String?             @map("error_details")
+  sentAt            DateTime?           @map("sent_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([recipient])
+  @@map("notification_logs")
+}
+
+// ──────────────────────────────────────────────────────────
+// 9. CMS Pages, Media Assets, SEO Metadata & Redirects
+// ──────────────────────────────────────────────────────────
+
+model CmsPage {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String    @map("title")
+  slug        String    @unique @map("slug")
+  contentJson Json      @map("content_json")
+  status      CmsStatus @default(DRAFT) @map("status")
+  publishedAt DateTime? @map("published_at")
+  authorId    String    @map("author_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([slug])
+  @@index([status])
+  @@map("cms_pages")
+}
+
+model MediaAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  filename     String   @map("filename")
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  url          String   @map("url")
+  altText      String?  @map("alt_text")
+  caption      String?  @map("caption")
+  bucketPath   String   @map("bucket_path")
+  uploadedById String   @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@map("media_assets")
+}
+
+model SeoMetadata {
+  id                 String   @id @default(uuid()) @db.Uuid
+  entityType         String   @map("entity_type") // 'PAGE', 'PACKAGE', 'VEHICLE', 'ROUTE'
+  entityId           String?  @map("entity_id") @db.Uuid
+  pagePath           String?  @unique @map("page_path")
+  metaTitle          String   @map("meta_title")
+  metaDescription    String   @map("meta_description")
+  canonicalUrl       String?  @map("canonical_url")
+  ogImageUrl         String?  @map("og_image_url")
+  ogTitle            String?  @map("og_title")
+  ogDescription      String?  @map("og_description")
+  keywords           String[] @map("keywords")
+  structuredDataJson Json?    @map("structured_data_json")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@unique([entityType, entityId])
+  @@map("seo_metadata")
+}
+
+model RedirectRule {
+  id         String   @id @default(uuid()) @db.Uuid
+  sourcePath String   @unique @map("source_path")
+  targetPath String   @map("target_path")
+  statusCode Int      @default(301) @map("status_code")
+  isActive   Boolean  @default(true) @map("is_active")
+  hitsCount  Int      @default(0) @map("hits_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("redirect_rules")
+}
+
+// ──────────────────────────────────────────────────────────
+// 10. Audit Logs, Idempotency Keys & System Settings
+// ──────────────────────────────────────────────────────────
+
+model AuditLog {
+  id              String      @id @default(uuid()) @db.Uuid
+  entityName      String      @map("entity_name")
+  entityId        String      @map("entity_id")
+  action          AuditAction @map("action")
+  userId          String?     @map("user_id") @db.Uuid
+  ipAddress       String?     @map("ip_address")
+  userAgent       String?     @map("user_agent")
+  beforeStateJson Json?       @map("before_state_json")
+  afterStateJson  Json?       @map("after_state_json")
+  metadataJson    Json?       @map("metadata_json")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([entityName, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyKey {
+  id                 String    @id @default(uuid()) @db.Uuid
+  key                String    @unique @map("key")
+  targetEndpoint     String    @map("target_endpoint")
+  requestHash        String    @map("request_hash")
+  responseStatusCode Int?      @map("response_status_code")
+  responseBodyJson   String?   @map("response_body_json")
+  lockedUntil        DateTime  @map("locked_until")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  completedAt        DateTime? @map("completed_at")
+
+  payments Payment[]
+
+  @@index([key])
+  @@map("idempotency_keys")
+}
+
+model SystemSetting {
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String   @unique @map("key")
+  value        String   @map("value")
+  description  String?  @map("description")
+  isPublic     Boolean  @default(false) @map("is_public")
+  updatedById  String?  @map("updated_by_id") @db.Uuid
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("system_settings")
+}

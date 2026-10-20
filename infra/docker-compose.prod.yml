@@ -1,0 +1,75 @@
+# ============================================================
+# Dehradun Platform — Production Docker Compose Orchestration
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dehradun-prod-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dehradun}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dehradun_secure_prod_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-dehradun_prod}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dehradun} -d ${POSTGRES_DB:-dehradun_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dehradun-net
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    container_name: dehradun-prod-api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dehradun}:${POSTGRES_PASSWORD:-dehradun_secure_prod_2026}@postgres:5432/${POSTGRES_DB:-dehradun_prod}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dehradun_prod_jwt_super_secret_signing_key_2026}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_PHONE: ${TWILIO_FROM_PHONE:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+    ports:
+      - "3001:3001"
+    networks:
+      - dehradun-net
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    container_name: dehradun-prod-web
+    restart: always
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    networks:
+      - dehradun-net
+
+networks:
+  dehradun-net:
+    driver: bridge
+
+volumes:
+  pgdata_prod:
+    driver: local

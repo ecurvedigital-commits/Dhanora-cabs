@@ -1,0 +1,39 @@
+# Multi-stage Production Dockerfile for NestJS API
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+RUN npm install -g pnpm@12.11.2
+
+# Copy package descriptors
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/contracts ./packages/contracts
+COPY packages/prisma ./packages/prisma
+COPY apps/api ./apps/api
+
+# Install dependencies and build
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @dehradun/prisma generate
+RUN pnpm --filter @dehradun/api build
+
+# Runner stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV API_PORT=3001
+
+RUN npm install -g pnpm@12.11.2
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/contracts ./packages/contracts
+COPY packages/prisma ./packages/prisma
+COPY apps/api/package.json ./apps/api/package.json
+
+RUN pnpm install --prod --frozen-lockfile
+RUN pnpm --filter @dehradun/prisma generate
+
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/apps/api/src/main.js"]

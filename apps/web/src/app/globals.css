@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --foreground: #14263D;
+  --background: #F8F7F2;
+  --bg-alt: #EAF1F7;
+  --primary-accent: #F5BE19;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-jakarta), 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-heading, .font-display {
+  font-family: var(--font-sora), 'Sora', var(--font-jakarta), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom refined scrollbar for light theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8F7F2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Hide scrollbar utility for clean horizontal chips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Animated Mountain Highway Driving Loop */
+@keyframes driveLoop {
+  0% {
+    left: -140px;
+  }
+  100% {
+    left: calc(100% + 40px);
+  }
+}
+
+@keyframes carBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.8px);
+  }
+}
+
+@keyframes wheelSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes roadDashesMove {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -24px 0;
+  }
+}
+
+.animate-drive-loop {
+  animation: driveLoop 7s linear infinite;
+  will-change: left;
+}
+
+.animate-car-bounce {
+  animation: carBounce 0.35s ease-in-out infinite;
+}
+
+.animate-wheel-spin {
+  animation: wheelSpin 0.3s linear infinite;
+}
+
+.animate-road-dashes {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #F5BE19 0,
+    #F5BE19 14px,
+    transparent 14px,
+    transparent 24px
+  );
+  background-size: 24px 2px;
+  animation: roadDashesMove 0.4s linear infinite;
+}
+
+/* Reusable Unified Design System Components */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#F5BE19] hover:bg-[#DFAC13] text-[#14263D] font-bold text-sm tracking-normal transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-[#F5BE19] focus:ring-offset-2;
+  }
+  .btn-emergency {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-sm tracking-normal transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-[#B91C1C] focus:ring-offset-2;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-[#F8F7F2] text-[#14263D] border border-[#CBD5E1] font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#14263D] focus:ring-offset-2;
+  }
+  .btn-whatsapp {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#15803D] hover:bg-[#166534] text-white font-bold text-xs transition-all shadow-sm focus:ring-2 focus:ring-[#15803D] focus:ring-offset-2;
+  }
+}
